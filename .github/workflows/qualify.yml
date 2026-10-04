@@ -1,0 +1,39 @@
+name: Flower source qualification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  core-regressions:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Actual core execution, with NDEBUG
+        run: sh scripts/test.sh
+      - name: Require rejecting mutants
+        run: python3 scripts/mutation_test.py
+      - name: Address and undefined-behavior sanitizers
+        run: |
+          cc -std=c11 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc src/flower.c tests/test_flower.c -lm -o /tmp/test-flower
+          /tmp/test-flower
+  ndk-armeabi-v7a:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: android-actions/setup-android@v3
+      - name: Install pinned NDK
+        run: sdkmanager 'ndk;27.2.12479018'
+      - name: Compile and link real raylib Android host
+        run: |
+          cmake -S . -B build/android -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/27.2.12479018/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=armeabi-v7a -DANDROID_PLATFORM=24 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/android --parallel 2
+          "$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h build/android/libflower.so
+          sha256sum build/android/libflower.so
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-native-library-not-an-apk
+          path: build/android/libflower.so
+          if-no-files-found: error
