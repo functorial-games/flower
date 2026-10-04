@@ -130,3 +130,185 @@ The first useful invariant is:
 
 That gives us a testable boundary between topology and rendering before we
 attempt a more sophisticated elastic surface model.
+
+
+## Developing maps: local data can assemble a global realization
+
+GT3M section 3.5 introduces the developing map for a geometric structure.
+Starting with compatible local charts, one analytically continues a chart
+through overlaps. On the universal cover this produces a map into the model
+geometry. Going around loops may return with a transformation of the model;
+that is the holonomy.
+
+Flower is not currently a (G,X)-manifold, and we should not force it into that
+formalism. The useful design lesson is more general:
+
+- local patch descriptions should agree on overlaps;
+- a realized surface can be assembled from those local descriptions;
+- the realized 3-D coordinates are not necessarily the primary data;
+- consistency around loops is a global condition which local pairwise
+  compatibility alone may fail to reveal.
+
+For Flower this suggests keeping overlap transition data explicit enough that
+we can test a loop of patches for accumulated inconsistency instead of hiding
+all consistency inside one render mesh.
+
+GT3M reference: section 3.5, "The developing map."
+
+## Chapter 5: deform a structure without changing the underlying topology
+
+Chapter 5 studies deformation spaces of geometric structures. This is close to
+the distinction Flower needs: the underlying manifold can stay fixed while its
+geometric structure varies.
+
+A particularly useful two-dimensional example is the description of a
+hyperbolic surface by cutting it into pairs of pants and recording length and
+twist coordinates. Thurston gives Teichmuller space of a closed genus-g
+surface coordinates of the form
+
+    (log l_1, tau_1, ..., log l_(3g-3), tau_(3g-3)).
+
+The literal hyperbolic coordinates are not Flower's coordinates. The useful
+pattern is:
+
+    fixed topological material
+        +
+    a finite set of intrinsic geometric parameters
+        =
+    one point in a space of possible geometries.
+
+Growth then becomes motion in a geometry-state space while patch identity and
+topological adjacency remain fixed.
+
+GT3M reference: Chapter 5, especially sections 5.1--5.3.
+
+## Mapping classes, Teichmuller space, and Weil--Petersson geometry
+
+Farb and Margalit's *A Primer on Mapping Class Groups* studies three objects
+which should remain conceptually distinct:
+
+1. the surface itself;
+2. its mapping class group, i.e. self-homeomorphisms/diffeomorphisms modulo
+   isotopy;
+3. Teichmuller space, which records marked geometric/conformal structures on
+   that fixed topological surface.
+
+Quotienting Teichmuller space by the mapping class group gives moduli space:
+geometries which differ only by a change of marking are identified.
+
+The Weil--Petersson metric is a natural metric on Teichmuller space. It
+measures variation of marked hyperbolic/Riemann-surface structure and is
+mapping-class-group invariant, so it descends to moduli space. Mirzakhani's
+work uses the associated Weil--Petersson symplectic geometry and volume.
+
+This is relevant to Flower as architecture, not yet as mechanics.
+
+Flower's current material is not constrained to have constant negative
+curvature or even to remain in one conformal class. Therefore the
+Weil--Petersson metric should not be substituted for a physical growth or
+elastic energy merely because it is a beautiful metric on a space of surface
+geometries.
+
+The useful analogy is instead:
+
+    topology / marking          -> which material point or patch is which
+    intrinsic geometry state    -> how much material wants to exist locally
+    reparametrization           -> a different description of the same state
+    embedding in R^3            -> how that intrinsic state is currently folded
+    rendering                   -> a sampled picture of the embedding.
+
+If we later create a reduced space of admissible flower geometries, it may be
+worth asking whether that space has a natural metric analogous in spirit to
+Weil--Petersson. That should be derived from Flower's own deformation energy,
+not imported from hyperbolic geometry without a reason.
+
+For a simple petal modelled topologically as a disk with its boundary fixed,
+the mapping class group itself carries little information. Mapping-class-group
+machinery becomes more interesting if the material surface acquires marked
+points, punctures, holes, nontrivial handles, or meaningful ways of permuting
+distinguished regions.
+
+Reference:
+Benson Farb and Dan Margalit, *A Primer on Mapping Class Groups*, especially
+Parts II and III for Teichmuller/moduli space and the Nielsen--Thurston view.
+
+## Chapter 8: laminations and bending are closer to the flower than expected
+
+GT3M section 8.6 treats a lamination as locally a product of a leaf direction
+with a transverse local space, then equips the transverse direction with a
+measure. For boundaries of hyperbolic 3-manifolds Thurston uses a transverse
+bending measure: crossing the lamination accumulates turning angle.
+
+Flower does not need a geodesic lamination immediately. But this gives a
+useful representation for a surface whose deformation becomes concentrated
+along families of folds:
+
+    smooth material region
+        +
+    a set or lamination of preferred fold lines
+        +
+    a measure recording accumulated bend across them.
+
+That is substantially richer than assigning an arbitrary height to every
+vertex. It also permits a mixed representation in which large regions are
+computed smoothly and sharp or repeated ruffles carry concentrated bending
+data.
+
+GT3M reference: section 8.6, "Measuring laminations."
+
+## GT3M section 8.8: crumpled versus wrinkled surfaces
+
+This section is unusually close to the visual problem in Flower. Thurston
+draws a qualitative distinction between a crumpled sheet and a sheet that is
+only wrinkled or crinkled. The surrounding discussion studies surfaces made
+from locally flat pieces and limiting constructions.
+
+For Flower the immediate lesson is that "more area" should not automatically
+mean arbitrary high-frequency crumpling. We want controlled ruffling whose
+local organization remains legible.
+
+That suggests eventually recording a regularity constraint on deformation,
+for example:
+
+- bound how rapidly fold direction changes over topological hop distance;
+- distinguish distributed curvature from concentrated fold/bending data;
+- refine the render mesh where curvature requires it rather than where growth
+  happens merely because growth happened;
+- detect pathological accumulation of folds separately from ordinary ruffle
+  refinement.
+
+This can become a mechanical invariant before we know the final continuum
+model.
+
+GT3M reference: section 8.8, "Uncrumpled surfaces."
+
+## Revised hierarchy for Flower
+
+The working hierarchy is now:
+
+    TOPOLOGICAL MATERIAL
+        open patches
+        overlaps / higher intersections
+        marking and boundary data
+        hop distance
+
+    INTRINSIC GEOMETRY
+        local preferred metric / area
+        growth history
+        perhaps reduced deformation coordinates later
+
+    BENDING / REGULARITY
+        distributed curvature
+        optionally concentrated fold or lamination data
+
+    EMBEDDING
+        current realization in R^3
+        enough state to continue deterministically
+
+    RENDER ADAPTER
+        tessellation
+        normals
+        GPU buffers
+        raylib camera/draw calls
+
+Only the last layer should care that raylib wants triangles.
