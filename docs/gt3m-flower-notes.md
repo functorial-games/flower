@@ -312,3 +312,248 @@ The working hierarchy is now:
         raylib camera/draw calls
 
 Only the last layer should care that raylib wants triangles.
+
+
+## Chapter 4: local pieces need loop consistency, not just pairwise agreement
+
+Section 4.2 is a useful warning against a too-naive open-set implementation.
+Thurston glues ideal tetrahedra and then imposes consistency around each edge.
+It is not enough for every neighboring pair of pieces to fit. Going all the
+way around an edge must return with the correct total angle and no residual
+holonomy.
+
+Flower's exact equations will be different, but the architectural point is
+directly applicable:
+
+    pairwise-compatible overlaps
+        do not imply
+    globally-compatible geometry.
+
+For a cycle of patches
+
+    U_0 -> U_1 -> ... -> U_k -> U_0
+
+the composed transition around the loop should be checked. If the intended
+material atlas has no defect there, the accumulated transition should return
+to the starting material frame. If it does not, the residual should be
+represented deliberately as curvature, twist, defect or inconsistency rather
+than silently absorbed into the render mesh.
+
+This suggests two separate tests:
+
+1. topological overlap consistency: the incidence data describes the intended
+   surface;
+2. geometric loop consistency: composing local transition data around a
+   contractible material loop gives the allowed residual.
+
+GT3M reference: section 4.2, "Gluing consistency conditions."
+
+## Chapter 6: a discrete realization can be changed without changing the thing represented
+
+In section 6.1 Thurston replaces an arbitrary singular simplex by a canonical
+straight simplex with the same vertices. The straightening operation acts on
+the chain representation while preserving the homological information needed
+for the argument.
+
+Flower should not literally use hyperbolic straightening, but this gives a
+useful representation principle:
+
+    authoritative state != one particular discretization.
+
+A render triangulation may be subdivided, collapsed, retriangulated or
+canonicalized while preserving the same material/topological state. Such an
+operation should have an explicit invariant it promises to preserve.
+
+For Flower, candidates include:
+
+- patch identity and overlap;
+- selected material region;
+- intrinsic area/growth assigned to each patch;
+- boundary marking;
+- accumulated fold measure;
+- embedding within a declared approximation tolerance.
+
+"Same vertices" is not the important part for us. The important part is that a
+discrete carrier can be replaced by a better-behaved carrier through a
+controlled map while the represented invariant is held fixed.
+
+GT3M reference: Chapter 6, section 6.1, straightening singular simplices.
+
+## Section 8.9: train tracks as finite carriers for a complicated continuum
+
+Train tracks are especially relevant to Flower.
+
+Thurston starts with many nearly parallel leaves of a lamination inside thin,
+branching corridors and collapses each corridor to a branching graph. The
+graph carries the possible paths of the leaves. He describes train tracks as
+"analogous to decimal approximations of real numbers."
+
+This is not the same object as Flower's open cover:
+
+    open-cover / nerve net
+        says what material neighborhoods overlap;
+
+    train-track-like carrier
+        says how a directional family of folds, veins or flow lines travels
+        through that material.
+
+The two layers can coexist.
+
+For example, a petal can have an authoritative patch cover U_i. A fold field
+inside those patches may later be compressed to a much smaller branching
+carrier tau. Refining the fold pattern need not refine the whole material
+topology.
+
+A useful eventual representation is:
+
+    MATERIAL NET
+        patch graph / nerve
+
+    FOLD CARRIER
+        branches and switches embedded in material coordinates
+
+    BRANCH DATA
+        bend amount
+        direction
+        scale / wavelength
+        optional transverse width or measure.
+
+This is closer to "half computation and half storage" than a dense array of
+per-vertex wrinkle values.
+
+GT3M reference: section 8.9, "The structure of geodesic laminations: train
+tracks."
+
+## Measured train tracks: conservation at a switch
+
+GT3M goes further. If a lamination carries a transverse measure, a number
+mu(b) is assigned to each branch b of a carrying train track. At every switch,
+the total entering measure equals the total exiting measure.
+
+Schematically,
+
+    sum entering mu(b) = sum exiting mu(b).
+
+Conversely, suitable nonnegative branch values satisfying these switch
+conditions determine a measured lamination carried by the track.
+
+Flower should not impose this conservation law on arbitrary growth. But it is
+a very attractive model for quantities which really should be conserved while
+branching, for example:
+
+- a vein-like transported flow;
+- a conserved "fold flux";
+- material transport through a branching procedural brush;
+- a resolution-independent directional density.
+
+This gives a way to store a continuum-like family with a finite graph plus
+numbers, rather than one object per visible strand.
+
+GT3M reference: section 8.9, around the measured train-track discussion.
+
+## Section 11.1: separate infinitesimal strain from infinitesimal rotation
+
+Chapter 11 contains a decomposition that is conceptually useful even though
+its setting is hyperbolic 3-space. For a deformation vector field X, Thurston
+splits its covariant derivative into symmetric and antisymmetric parts:
+
+    nabla X = symmetric part + antisymmetric part.
+
+The antisymmetric part describes infinitesimal rotation. The symmetric part
+measures infinitesimal strain, i.e. distortion of the metric.
+
+This is exactly the distinction Flower should preserve at the implementation
+level:
+
+    rigid/local rotation
+        should not count as growth;
+
+    change of intrinsic preferred metric
+        is growth;
+
+    elastic strain of the current embedding
+        is the mismatch between current geometry and preferred geometry.
+
+A petal can rotate dramatically in 3-space while its intrinsic growth remains
+zero. Conversely, intrinsic growth can increase while the visible position
+changes only slightly for a time.
+
+That suggests diagnostics which report these separately rather than reducing
+everything to vertex displacement:
+
+    intrinsic growth increment
+    elastic strain
+    bending
+    rigid/local rotation
+    render displacement.
+
+GT3M reference: Chapter 11, section 11.1, decomposition of the covariant
+derivative of a deformation field.
+
+## Section 13.7: combinatorics plus local continuous data can determine geometry
+
+Thurston's circle-pattern construction is another strong model for Flower.
+Start with a cell division of a surface and prescribed intersection-angle data.
+Associate a radius to each vertex. These finite data determine local triangles
+of centers and hence a piecewise metric; the radii can then be adjusted so
+that the curvature conditions at vertices are satisfied.
+
+The specific circle-pattern theorem is not our flower model. The useful design
+pattern is:
+
+    finite combinatorics
+        +
+    a small amount of local continuous data
+        +
+    compatibility equations
+        ->
+    global metric geometry.
+
+This argues against storing the flower only as millions of independent point
+positions. A patch/cell net plus local growth variables may determine far more
+of the geometry than a naive mesh representation suggests.
+
+It also gives a concrete implementation idea for later experiments: choose a
+cellulation of material space, attach one or a few intrinsic scale variables
+to each cell or vertex, derive edge lengths from neighboring variables, and
+solve compatibility/curvature conditions. This would be a discrete intrinsic
+geometry generator rather than merely a render mesh deformation.
+
+Thurston also remarks that his proof gives a practical iterative algorithm:
+changing one radius affects the curvature most strongly at its own vertex, so
+local radius adjustments converge reasonably well. The analogous Flower
+question is whether local intrinsic-growth variables can be relaxed using
+mostly local curvature/strain residuals.
+
+GT3M reference: section 13.7, "Constructing patterns of circles."
+
+## A useful three-net model
+
+GT3M now suggests that Flower may eventually want three related but distinct
+combinatorial objects:
+
+    1. MATERIAL COVER / NERVE
+       what is topologically near what;
+       used for touch selection and hop distance.
+
+    2. GEOMETRY CELLULATION
+       finite carrier for intrinsic metric/growth variables and compatibility
+       equations.
+
+    3. TRAIN-TRACK-LIKE FOLD CARRIER
+       finite carrier for organized directional bending or ruffling.
+
+None of these is the raylib triangle mesh.
+
+They may initially coincide for simplicity. The architecture should not assume
+they must coincide forever.
+
+A fourth object is then purely derived:
+
+    4. RENDER TESSELLATION
+       whatever density of triangles is currently useful to display the
+       embedding.
+
+This is probably a better long-term interpretation of "the underlying net
+should be topological" than trying to make one graph do topology, mechanics,
+fold organization and rasterization simultaneously.
