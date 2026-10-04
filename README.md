@@ -30,3 +30,7 @@ Product route: Android NDK r27c (`27.2.12479018`), `armeabi-v7a`, API 24 minimum
 `sh scripts/test.sh` runs the actual shared C simulation/input gate on the host with `NDEBUG`, explicit failing checks, and compiler warnings as errors. `python3 scripts/mutation_test.py` requires runtime rejection of ignored release, ignored pointer identity, ignored focus loss and a disconnected simulation. These are diagnostic tests, not phone acceptance. The workflow separately compiles/links the real raylib Android host and records the unsigned library hash.
 
 See `docs/qualification.md` for the evidence boundary. The assistant is responsible for implementation; these commands document repeatable checks, not work handed back to the player.
+
+## Design notes
+
+- [GT3M notes for Flower](docs/gt3m-flower-notes.md): open-patch topology, hop neighborhoods, intrinsic growth and the render boundary.
