@@ -50,7 +50,10 @@ Flower now uses the runner's installed SDK directly, installs explicit SDK/NDK
 components, and separately builds the real raylib/Lua native host and packages
 its own NativeActivity APK with a stable public test signer. The product keeps
 raylib pinned at 5.5 rather than silently inheriting Crystal's different renderer
-revision. No source library or build-infrastructure dependency was extracted.
+revision. The first updated Android run compiled every source and exposed a
+final-link failure from copying raylib 6.0's `--wrap=fopen` flag. Inspecting the
+pinned 5.5 `utils.c` showed direct `android_fopen` implementation; the mismatched
+flag was removed. No source library or build-infrastructure dependency was extracted.
 
 Hosted Android compilation/package/signature status must be bound to the exact
 published source commit and workflow, not inferred from Crystal or host tests.

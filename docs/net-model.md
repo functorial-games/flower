@@ -97,6 +97,8 @@ SDK component installation, AGP 8.7.3 / Gradle 8.9 and NativeActivity packaging.
 Its temporary `CrystalNet` embeds positions and drawing concerns more closely
 than its conceptual design; Flower deliberately separates these. Crystal's
 auto-spin and orientation-dependent external shapes are not Flower growth laws.
+Its raylib 6.0 `--wrap=fopen` linker flag is also version-specific: Flower's
+pinned 5.5 implements `android_fopen` directly and needs no linker wrapping.
 No shared source library is introduced.
 
 The GT3M notes pay for explicit material identity, finite incidence, bounded hops,
