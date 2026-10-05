@@ -3,3 +3,7 @@ __pycache__/
 *.so
 *.o
 *.apk
+/.gradle/
+/app/build/
+/app/src/main/jniLibs/
+/dist/

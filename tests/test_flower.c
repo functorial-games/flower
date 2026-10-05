@@ -8,7 +8,7 @@
 #define CHECK(test) do { if (!(test)) { fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#test); exit(1); } } while (0)
 static Flower flower, saved, reference;
 static FlowerHold hold;
-static const FlowerHit hit={.hit=true,.radial=0.9f,.angle=0};
+static const FlowerHit hit={.hit=true,.radial=0.9f,.angle=0,.node=14*FLOWER_SLICES};
 static void reset(void) { flower_init(&flower); flower_hold_init(&hold); }
 static void press(int id) { CHECK(flower_hold_begin(&hold,id,true,true,hit)); }
 static void frame(int id, bool down, double seconds) { flower_hold_frame(&flower,&hold,id,down,true,hit,seconds); }
@@ -24,12 +24,12 @@ int main(void) {
     CHECK(!flower_hold_begin(&hold,7,true,true,(FlowerHit){0}));
     frame(7,true,1.0/60); frozen(); puts("PASS no fresh valid press means no growth");
 
-    press(7); frame(7,true,1.0/60); CHECK(flower.steps==2);
-    CHECK(flower.growth[14*FLOWER_SLICES]>0);
-    CHECK(flower.growth[14*FLOWER_SLICES+FLOWER_SLICES/2]==0);
-    CHECK(memcmp(flower.position,saved.position,sizeof(flower.position))!=0);
-    CHECK(memcmp(flower.position,saved.position,FLOWER_SLICES*sizeof(FlowerPoint))==0);
-    CHECK(memcmp(flower.triangle,saved.triangle,sizeof(flower.triangle))==0);
+    press(7); frame(7,true,1.0/60); CHECK(flower.skin.steps==2);
+    CHECK(flower.skin.growth[14*FLOWER_SLICES]>0);
+    CHECK(flower.skin.growth[14*FLOWER_SLICES+FLOWER_SLICES/2]==0);
+    CHECK(memcmp(flower.skin.position,saved.skin.position,sizeof(flower.skin.position))!=0);
+    CHECK(memcmp(flower.skin.position,saved.skin.position,FLOWER_SLICES*sizeof(FlowerPoint))==0);
+    CHECK(memcmp(&flower.net,&saved.net,sizeof(flower.net))==0);
     puts("PASS held region gains preferred length; geometry changes, root and topology stay fixed");
 
     saved=flower; frame(7,false,1.0/60);
@@ -39,29 +39,29 @@ int main(void) {
     CHECK(!flower_hold_begin(&hold,8,true,true,hit));
     frame(8,true,1.0/60); frozen();
     flower_hold_all_released(&hold); press(8); frame(8,true,1.0/60);
-    CHECK(flower.steps==saved.steps+2); puts("PASS no pointer handoff; release and fresh press resume");
+    CHECK(flower.skin.steps==saved.skin.steps+2); puts("PASS no pointer handoff; release and fresh press resume");
 
     saved=flower; frame(9,true,1.0/60); flower_hold_release(&hold,9); frozen();
     CHECK(hold.captured && hold.owner==8); puts("PASS unrelated finger cannot grow or release captured stroke");
 
     flower_hold_frame(&flower,&hold,8,true,true,(FlowerHit){0},1.0/60); frozen();
-    frame(8,true,1.0/60); CHECK(flower.steps==saved.steps+2); puts("PASS off-surface time does not accumulate");
+    frame(8,true,1.0/60); CHECK(flower.skin.steps==saved.skin.steps+2); puts("PASS off-surface time does not accumulate");
 
     saved=flower;
     flower_hold_frame(&flower,&hold,8,true,false,hit,1.0/60);
     frame(8,true,1.0/60); frozen();
     CHECK(!flower_hold_begin(&hold,8,true,true,hit));
     flower_hold_all_released(&hold); press(8); frame(8,true,1.0/60);
-    CHECK(flower.steps==saved.steps+2); puts("PASS focus loss cancels and requires a fresh stroke");
+    CHECK(flower.skin.steps==saved.skin.steps+2); puts("PASS focus loss cancels and requires a fresh stroke");
 
     saved=flower; flower_hold_cancel(&hold); frame(8,true,1.0/60); frozen();
     puts("PASS explicit touch cancellation freezes state");
 
-    reset(); press(1); frame(1,true,1.0/240); CHECK(flower.steps==0);
+    reset(); press(1); frame(1,true,1.0/240); CHECK(flower.skin.steps==0);
     frame(1,false,1.0/60); saved=flower;
     for (int i=0;i<1000;i++) frame(1,false,1.0/60);
     frozen(); flower_hold_all_released(&hold); press(1); frame(1,true,1.0/240);
-    CHECK(flower.steps==0); frame(1,true,1.0/240); CHECK(flower.steps==1);
+    CHECK(flower.skin.steps==0); frame(1,true,1.0/240); CHECK(flower.skin.steps==1);
     puts("PASS release discards fractional time; no paused-time catch-up");
 
     const double bad_times[]={NAN,INFINITY,-1,0.5,120};
@@ -94,6 +94,6 @@ int main(void) {
         CHECK(fabsf(normals[i].x*normals[i].x+normals[i].y*normals[i].y+normals[i].z*normals[i].z-1)<1e-4f);
     }
     puts("PASS finite unit normals");
-    printf("PASS all core regressions; %d vertices, %d triangles, %d links\n",FLOWER_VERTICES,FLOWER_TRIANGLES,flower.link_count);
+    printf("PASS all core regressions; %d vertices, %d triangles, %d links\n",FLOWER_VERTICES,FLOWER_TRIANGLES,flower.skin.link_count);
     return 0;
 }

@@ -1,37 +1,61 @@
-# Qualification receipt — 2026-10-04
+# Flower qualification — 2026-10-05
 
-## Executed locally
+## Executed native diagnostics
 
-The actual `src/flower.c` implementation was compiled and executed with host C11, `-O2 -DNDEBUG -Wall -Wextra -Werror -pedantic`. This is diagnostic execution of shared code, not an Android product build.
+The original 15 core regression groups remain, adapted to separate Net/Skin.
+They execute actual core code with `-O2 -DNDEBUG -Wall -Wextra -Werror -pedantic`:
+starts paused; fresh valid press; intrinsic growth and changed realization;
+full-state release freeze; no pointer handoff; owner identity; discarded
+off-surface time; focus loss; cancel; fractional/paused-time discard; invalid
+time cancellation; invalid picks; equal fixed steps at 60/120 Hz; two-sided
+triangle picking and center hole; finite unit normals.
 
-Passing regression groups:
+The additional architectural executable uses the same strict host compiler
+flags and real Lua 5.4.8 at `6e22fedb74cf0c9b6656e9fce8b7331db847c605`:
 
-1. Starts paused, including hundreds of idle frames.
-2. No fresh, focused, on-surface press means no growth.
-3. Held material gains preferred length and changes geometry; distant growth, root positions and connectivity stay unchanged.
-4. Release freezes the entire Flower state bit-for-bit over hundreds of frames.
-5. No pointer handoff; a released and rearmed fresh press resumes.
-6. An unrelated pointer neither grows nor releases the captured stroke.
-7. Off-surface time does not accumulate.
-8. Focus loss cancels and requires a fresh stroke.
-9. Explicit touch cancellation freezes state.
-10. Release discards fractional fixed-step time; no paused-time catch-up.
-11. Invalid or stalled frame times cancel instead of growing a backlog.
-12. Invalid material coordinates cannot mutate the flower.
-13. Equal hold duration at 60 Hz and 120 Hz yields identical full state.
-14. Actual two-sided triangle picking, including empty background and the center hole.
-15. Derived normals remain finite and unit-length.
+- Exact BFS shells on a 2-band/4-sector fixture, angular seam, both boundaries,
+  reciprocal cell-edge incidence and invalid seeds.
+- Complete expected intrinsic increments, including a multiply-reached node,
+  folded coincident distant material, unchanged Net and changed realization.
+- Rigidly rotated/translated positions preserve intrinsic state and increments.
+- Release freezes the full retained Net/Skin across 500 attempted frames.
+- Two drawing densities preserve full state/hops and the same canonical faces;
+  1,465 vertex/edge/interior ray cases plus background, hole and explicit seam
+  tie cases map through both display meshes to the same material nodes.
+- Actual camera translation/look/roll operations preserve retained Net/Skin;
+  turning the head preserves camera position.
+- Real Lua changes permitted held-growth parameters; closed native gate and
+  release prevent evolution. Missing step APIs, parameter validation, rollback,
+  instruction and memory budgets are executed.
 
-The mesh uses 1,088 vertices, 2,048 triangles and 6,208 links. Four deliberately broken implementations must fail runtime checks, not merely fail compilation.
+Eight compiling deliberately broken implementations are rejected by runtime
+checks: ignored release, ignored owner identity, ignored focus loss, disconnected
+simulation, Euclidean folded-nearness brush, a render diagonal admitted as
+material adjacency, Lua-policy bypass of the native gate, and repeated-path
+growth multiplication. Compilation failure is not accepted as mutation evidence.
 
-## Not established by those tests
+Both executables also passed local ASan/UBSan with the Lua library instrumented.
+LeakSanitizer cannot inspect process threads in this execution container, so
+local execution used `ASAN_OPTIONS=detect_leaks=0`. The hosted workflow retains
+the ordinary full sanitizer configuration; its result is a separate evidence
+layer. This does not establish leak checking locally.
 
-The raylib window/input/rendering adapter has not been executed locally. Its Android lifecycle hooks and screen-to-material picking are not proven by the isolated core tests. The cloud NDK workflow must qualify actual compilation and linking. Separate rendered-input and lifecycle tests must still prove Android release/cancel/reentry and simultaneous camera/growth controls.
+## Android and packaging boundaries
 
-No APK has been packaged or signed, and no physical device was touched. MIRO A1 rendering, frame rate, memory consumption, multitouch behavior and replacement compatibility remain unverified. No screenshot, performance claim or successful phone run is implied by a passing core test.
+Crystal's refreshed successful run is
+https://github.com/isomorphisms/crystal/actions/runs/37306490183
+at source `0ed094920683cc0eae12e7c077dd347ea3f4e9b5`. Flower's previous Android
+failure occurred in `android-actions/setup-android`, before NDK compilation.
+Flower now uses the runner's installed SDK directly, installs explicit SDK/NDK
+components, and separately builds the real raylib/Lua native host and packages
+its own NativeActivity APK with a stable public test signer. The product keeps
+raylib pinned at 5.5 rather than silently inheriting Crystal's different renderer
+revision. No source library or build-infrastructure dependency was extracted.
 
-## Dependencies and representation
-
-Raylib is pinned to `c1ab645ca298a2801097931d1079b10ff7eb9df8` (5.5). The Android host wraps that revision's native app callbacks, forwarding every callback to raylib; it does not modify or replace raylib's platform implementation. An upgrade must requalify that seam.
-
-The pigment is constant; brightness is a derived, two-sided normal-based inspection shade. Growth changes preferred tangential link distances in material coordinates. Weak two-hop links are an approximation, not an independently validated bending constitutive law. Lua and generated GPU/CPU kernels remain future execution backends, not implemented features.
+Hosted Android compilation/package/signature status must be bound to the exact
+published source commit and workflow, not inferred from Crystal or host tests.
+No physical MIRO A1 execution has occurred in this task. Rendered input,
+Android callback integration, actual multitouch release/cancel/focus behavior,
+GPU behavior, performance, package replacement and installation remain UNKNOWN
+until exercised on the exact APK and device. No prior Flower installation is
+assumed. The APK is a test artifact, not a release.

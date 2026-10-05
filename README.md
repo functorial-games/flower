@@ -1,36 +1,51 @@
-# Flower: hold to grow
+# Flower: hold a material region to grow
 
-Native raylib prototype. **Press and hold a region of the flower to grow it. Release to freeze its exact current shape.** Starts paused. Camera motion never advances flower time. No play/pause toggle, automatic growth, or spacebar growth binding.
+Flower starts paused. A fresh press on the flower captures one pointer and
+grows a bounded **topological material neighborhood**. Release, cancel, focus
+or lifecycle loss freezes growth and all relaxation immediately. Camera flight,
+look and roll do not advance the flower. Paused time never catches up; another
+already-down finger cannot inherit a stroke.
 
-## Implemented source
+The native architecture is [Net → Skin → Mesh](docs/net-model.md):
 
-- A single fixed rose-colored pigment, with simple two-sided normal-based shading.
-- A triangulated, five-lobed sheet with a fixed inner ring. Holding increases preferred tangential material distances inside a bounded material-space brush. A spring-sheet relaxation changes the geometry; adding triangles is not growth.
-- A captured pointer ID owns each stroke. Release, Android touch cancellation, focus loss, or a long stall cancels it. An already-down finger cannot take over another finger's stroke. After cancellation, lift all contacts before starting a fresh stroke.
-- Missed surface or crossing into camera controls pauses growth without accumulating time. While held, moving the contact moves the material-space brush. Mechanical deformation can spread beyond the region whose preferred distances increase.
-- The solver and material growth both stop on release: no residual settling. Ordinary slow frames execute at most 50 ms of growth; a gap over 250 ms cancels the hold. Discarded time never catches up.
-- Independent camera translation, looking and roll. Android has separate FLY/LOOK touch pads and UP/DOWN/ROLL controls. Desktop inspection uses WASD, Q/E, right-drag and Z/X. The spacebar does nothing.
+- Net: a marked quadrilateral annulus with radial/angular adjacency, periodic
+  seam and center opening; no embedded positions or raylib objects.
+- Skin: preferred intrinsic tangential/radial growth, reference and realized
+  positions, spring constraints and deterministic continuation state.
+- Mesh: replaceable CPU/raylib drawing caches. The MESH button switches between
+  2,048 and 8,192 display triangles without changing Net/Skin or hop distance.
+- Lua: [a real growth policy](policy/default.lua), embedded at build time;
+  validated rate, hop radius, falloff and directional/edge bias govern the native
+  growth calculation. Lua receives neither native state nor simulation time.
 
-## State and execution
-
-`src/flower.c` owns retained reference positions, current positions, local growth and fixed connectivity. The hold controller owns the small fixed-step remainder; the camera is separate. The renderer derives normals and color/vertex buffers only when the geometry changes. It contains no time-driven deformation shader.
-
-Arrays and operations form the native boundary. This implementation does not require future procedural patches, brush strokes or generated kernels to map one-to-one onto C records. Lua and custom GPU/assembly generation are **not wired in this first slice**; the growth gate is native and cannot be bypassed by a future scripted rule. No persistence across process death yet.
-
-## Limits of the shape model
-
-This is a spring-sheet approximation with strong neighbor links and weak two-hop links, not a calibrated elastic-shell or plant model. It does not include self-collision, petal contact, thickness, translucency or anatomical petals. Visual quality and device performance still need qualification. The tests demonstrate local preferred-length growth and changed geometry, not scientifically validated flower morphogenesis.
+Android has separate FLY, LOOK, UP, DOWN and ROLL pads. Desktop diagnostic
+inspection uses WASD, Q/E, right-drag, Z/X and T for display density. The camera
+has no player body. One fixed rose pigment and derived two-sided lighting remain.
 
 ## Build and evidence
 
-Product route: Android NDK r27c (`27.2.12479018`), `armeabi-v7a`, API 24 minimum, pinned raylib 5.5 source `c1ab645ca298a2801097931d1079b10ff7eb9df8`. Intended phone: MIRO A1, Android 14. The initially empty repository supplied no qualified Ick/raylib/NativeActivity build integration; this is the explicit Ick integration gap, not a claim that Ick cannot compile this code.
+The product route is pinned Android NDK `26.3.11579264`, `armeabi-v7a`, API 24;
+raylib 5.5 source `c1ab645ca298a2801097931d1079b10ff7eb9df8`; Lua 5.4.8 source
+`6e22fedb74cf0c9b6656e9fce8b7331db847c605`. The initial repository had no
+qualified Ick/raylib/NativeActivity integration, which remains the explicit Ick
+integration gap. No phone/tablet compilation is required.
 
-`CMakeLists.txt` builds a native shared library through the NDK. It does **not** package or sign an APK. No package identity, signer, device-install or replacement evidence is asserted. A host viewer requires the explicit diagnostic option `FLOWER_HOST_DIAGNOSTIC=ON`; it is not the product build route.
+The workflow separately runs native core/Lua tests, runtime mutation rejection,
+sanitizers, actual NDK compilation and signed test APK packaging. Packaging uses
+Crystal's demonstrated Java 17 / Gradle 8.9 / AGP 8.7.3 NativeActivity route.
+Flower's identity is `org.isomorphisms.flower`, with a stable public development
+test signer described in [android/README.md](android/README.md). This is not a
+production key. An APK build does not prove MIRO A1 installation or behavior.
 
-`sh scripts/test.sh` runs the actual shared C simulation/input gate on the host with `NDEBUG`, explicit failing checks, and compiler warnings as errors. `python3 scripts/mutation_test.py` requires runtime rejection of ignored release, ignored pointer identity, ignored focus loss and a disconnected simulation. These are diagnostic tests, not phone acceptance. The workflow separately compiles/links the real raylib Android host and records the unsigned library hash.
+Core-only CMake qualification (`FLOWER_CORE_ONLY=ON`) needs no raylib/window.
+`scripts/test.sh` retains the original core-only regressions; CMake/CTest also
+runs the architectural and real-Lua checks. The adapted mutation runner uses
+the pinned Lua checkout via `FLOWER_LUA_SOURCE`.
 
-See `docs/qualification.md` for the evidence boundary. The assistant is responsible for implementation; these commands document repeatable checks, not work handed back to the player.
+See [qualification](docs/qualification.md) for executed evidence and boundaries.
+The fixed-Net spring-sheet approximation is not a calibrated botanical/shell
+model. Display density is independent, but simulation discretization is fixed.
+No adaptive material remeshing, collision, thickness, process-death persistence,
+advanced GT3M machinery or shared Crystal/Flower library has been added.
 
-## Design notes
-
-- [GT3M notes for Flower](docs/gt3m-flower-notes.md): open-patch topology, hop neighborhoods, intrinsic growth and the render boundary.
+Design input: [GT3M notes](docs/gt3m-flower-notes.md).
