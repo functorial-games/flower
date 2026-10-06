@@ -32,7 +32,7 @@ static int set_growth(lua_State *state) {
 }
 bool flower_policy_lua(FlowerPolicy *policy,const char *script,char *error,size_t error_size) {
     PolicyBudget budget={0}; FlowerPolicy next=*policy;
-    lua_State *state=lua_newstate(allocate,&budget);
+    lua_State *state=lua_newstate(allocate,&budget,0);
     if (!state) { if (error_size) snprintf(error,error_size,"Lua allocation failed"); return false; }
     *(PolicyBudget **)lua_getextraspace(state)=&budget;
     lua_sethook(state,instruction_limit,LUA_MASKCOUNT,1000);
