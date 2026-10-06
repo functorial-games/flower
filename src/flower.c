@@ -97,10 +97,8 @@ bool flower_hold_begin(FlowerHold *hold, int pointer, bool fresh_press, bool foc
 void flower_hold_release(FlowerHold *hold, int pointer) {
     if (hold->captured && hold->owner==pointer) flower_hold_cancel(hold);
 }
-static void simulation_step(Flower *flower, FlowerHit hit, const FlowerPolicy *policy) {
-    FlowerNet *net=&flower->net; FlowerSkin *skin=&flower->skin;
-    int16_t distance[FLOWER_VERTICES];
-    if (!flower_net_hops(net,hit.node,policy->hop_radius,distance)) return;
+static void grow_intrinsic_geometry(const FlowerNet *net, FlowerSkin *skin,
+                                    const int16_t *distance, const FlowerPolicy *policy) {
     for (int index=0;index<net->node_count;index++) {
         if (net->boundary[index]&1 || distance[index]<0) continue;
         float weight=powf(1-(float)distance[index]/(policy->hop_radius+1),policy->falloff);
@@ -109,23 +107,36 @@ static void simulation_step(Flower *flower, FlowerHit hit, const FlowerPolicy *p
         skin->growth[index]=fminf(1.5f,skin->growth[index]+gain);
         skin->radial_growth[index]=fminf(1.5f,skin->radial_growth[index]+gain*policy->radial_fraction);
     }
+}
+static float preferred_link_length(const FlowerSkin *skin, FlowerLink link) {
+    float tangent=1+0.5f*(skin->growth[link.first]+skin->growth[link.second]);
+    float radial=1+0.5f*(skin->radial_growth[link.first]+skin->radial_growth[link.second]);
+    return link.length*sqrtf(tangent*tangent*link.tangent_squared+radial*radial*(1-link.tangent_squared));
+}
+static void relax_material_link(const FlowerNet *net, FlowerSkin *skin, FlowerLink link) {
+    FlowerPoint delta=sub(skin->position[link.second],skin->position[link.first]);
+    float length=sqrtf(dot(delta,delta));
+    int first_free=!(net->boundary[link.first]&1), second_free=!(net->boundary[link.second]&1);
+    int free_count=first_free+second_free;
+    if (length<1e-8f || !free_count) return;
+    float preferred=preferred_link_length(skin,link);
+    FlowerPoint correction=scale(delta,link.stiffness*(length-preferred)/(length*free_count));
+    if (first_free) skin->position[link.first]=add(skin->position[link.first],correction);
+    if (second_free) skin->position[link.second]=sub(skin->position[link.second],correction);
+}
+static void relax_skin(const FlowerNet *net, FlowerSkin *skin) {
     /* Ordered spring-sheet relaxation; not a calibrated shell or collision solver. */
     for (int pass=0;pass<8;pass++) for (int order=0;order<skin->link_count;order++) {
         int index=(pass&1)? skin->link_count-1-order : order;
-        FlowerLink link=skin->link[index];
-        float tangent=1+0.5f*(skin->growth[link.first]+skin->growth[link.second]);
-        float radial=1+0.5f*(skin->radial_growth[link.first]+skin->radial_growth[link.second]);
-        float preferred=link.length*sqrtf(tangent*tangent*link.tangent_squared+radial*radial*(1-link.tangent_squared));
-        FlowerPoint delta=sub(skin->position[link.second],skin->position[link.first]);
-        float length=sqrtf(dot(delta,delta));
-        int first_free=!(net->boundary[link.first]&1), second_free=!(net->boundary[link.second]&1);
-        int free_count=first_free+second_free;
-        if (length<1e-8f || !free_count) continue;
-        FlowerPoint correction=scale(delta,link.stiffness*(length-preferred)/(length*free_count));
-        if (first_free) skin->position[link.first]=add(skin->position[link.first],correction);
-        if (second_free) skin->position[link.second]=sub(skin->position[link.second],correction);
+        relax_material_link(net,skin,skin->link[index]);
     }
-    skin->steps++;
+}
+static void simulation_step(Flower *flower, FlowerHit hit, const FlowerPolicy *policy) {
+    int16_t distance[FLOWER_VERTICES];
+    if (!flower_net_hops(&flower->net,hit.node,policy->hop_radius,distance)) return;
+    grow_intrinsic_geometry(&flower->net,&flower->skin,distance,policy);
+    relax_skin(&flower->net,&flower->skin);
+    flower->skin.steps++;
 }
 bool flower_hold_frame_policy(Flower *flower, FlowerHold *hold, int pointer, bool down,
                               bool focused, FlowerHit hit, double frame_seconds, const FlowerPolicy *policy) {

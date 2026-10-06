@@ -35,10 +35,11 @@ with tempfile.TemporaryDirectory(prefix='flower-mutants-') as temporary:
                     '-c', str(lua_source / 'onelua.c'), '-o', str(lua_object)], check=True)
     architecture_mutations = {
         'Euclidean folded-nearness brush': (
-            'if (net->boundary[index]&1 || distance[index]<0) continue;',
-            'FlowerPoint delta=sub(skin->position[index],skin->position[hit.node]); '
-            'distance[index]=dot(delta,delta)<0.04f ? 0 : -1; '
-            'if (net->boundary[index]&1 || distance[index]<0) continue;'),
+            'grow_intrinsic_geometry(&flower->net,&flower->skin,distance,policy);',
+            'for (int index=0;index<flower->net.node_count;index++) { '
+            'FlowerPoint delta=sub(flower->skin.position[index],flower->skin.position[hit.node]); '
+            'distance[index]=dot(delta,delta)<0.04f ? 0 : -1; } '
+            'grow_intrinsic_geometry(&flower->net,&flower->skin,distance,policy);'),
         'render diagonal admitted as material adjacency': (
             'net->neighbor[id][net->degree[id]++]=(uint16_t)vertex(net,ring+1,slice);',
             'net->neighbor[id][net->degree[id]++]=(uint16_t)vertex(net,ring+1,slice+1);'),

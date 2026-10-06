@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.22)
+# Product application C for the MIRO A1 is A32, never an implicit Thumb lane.
+if(DEFINED ANDROID_ARM_MODE AND NOT ANDROID_ARM_MODE STREQUAL "arm")
+    message(FATAL_ERROR "Flower MIRO requires ANDROID_ARM_MODE=arm")
+endif()
+set(ANDROID_ARM_MODE arm CACHE STRING "MIRO A1 A32 instruction state")
 project(flower C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
