@@ -8,8 +8,8 @@ if(NOT ANDROID AND NOT FLOWER_HOST_DIAGNOSTIC AND NOT FLOWER_CORE_ONLY)
     message(FATAL_ERROR "Product builds require the Android NDK toolchain. Host inspection requires explicit FLOWER_HOST_DIAGNOSTIC=ON.")
 endif()
 include(FetchContent)
-FetchContent_Declare(lua GIT_REPOSITORY https://github.com/lua/lua.git
-    GIT_TAG 6e22fedb74cf0c9b6656e9fce8b7331db847c605)
+FetchContent_Declare(lua GIT_REPOSITORY https://github.com/isomorphisms/lua.git
+    GIT_TAG dca7e57c16c524c8616144ed294fe598947a029f)
 FetchContent_MakeAvailable(lua)
 add_library(flower_lua STATIC "${lua_SOURCE_DIR}/onelua.c")
 target_compile_definitions(flower_lua PRIVATE MAKE_LIB)
