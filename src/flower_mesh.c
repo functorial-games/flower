@@ -34,7 +34,8 @@ void flower_normals(const Flower *flower,FlowerPoint *normals) {
     for (int i=0;i<flower->net.node_count;i++) normals[i]=unit(normals[i]);
 }
 void flower_mesh_free(FlowerMesh *mesh) {
-    free(mesh->position); free(mesh->normal); free(mesh->parent); free(mesh->surface);
+    free(mesh->position); free(mesh->normal); free(mesh->material_radius);
+    free(mesh->parent); free(mesh->surface);
     memset(mesh,0,sizeof(*mesh));
 }
 static FlowerPoint blend(const FlowerPoint *p,float u,float v) {
@@ -47,9 +48,10 @@ bool flower_mesh_build(const Flower *flower,int density,FlowerMesh *mesh) {
     out.triangle_count=out.surface_count*density*density; out.vertex_count=out.triangle_count*3;
     out.position=malloc((size_t)out.vertex_count*sizeof(*out.position));
     out.normal=malloc((size_t)out.vertex_count*sizeof(*out.normal));
+    out.material_radius=malloc((size_t)out.vertex_count*sizeof(*out.material_radius));
     out.parent=malloc((size_t)out.triangle_count*sizeof(*out.parent));
     out.surface=calloc((size_t)out.surface_count,sizeof(*out.surface));
-    if (!out.position || !out.normal || !out.parent || !out.surface) { flower_mesh_free(&out); return false; }
+    if (!out.position || !out.normal || !out.material_radius || !out.parent || !out.surface) { flower_mesh_free(&out); return false; }
     FlowerPoint normals[FLOWER_VERTICES]; flower_normals(flower,normals);
     int emitted=0;
     const float low[1][3][2]={{{0,0},{1,0},{0,1}}};
@@ -65,6 +67,9 @@ bool flower_mesh_build(const Flower *flower,int density,FlowerMesh *mesh) {
                 int id=emitted*3+v;
                 out.position[id]=blend(t->position,weight[0],weight[1]);
                 out.normal[id]=unit(blend(t->normal,weight[0],weight[1]));
+                /* The same parent chart yields the same field at either density. */
+                out.material_radius[id]=(1.0f-weight[0]-weight[1])*t->radial[0]
+                    +weight[0]*t->radial[1]+weight[1]*t->radial[2];
             }
             emitted++;
         }
