@@ -2,6 +2,7 @@
 #include "flower_policy.h"
 #include "flower_camera.h"
 #include "flower_default_policy.h"
+#include "flower_surface_shader.h"
 #include "raylib.h"
 #include "rlgl.h"
 #include <math.h>
@@ -14,6 +15,7 @@ static FlowerHold hold;
 static FlowerMesh display;
 static FlowerPolicy policy;
 static int display_density=1;
+static bool show_rings=false;
 static bool platform_active=true;
 #if defined(PLATFORM_ANDROID)
 #include <android_native_app_glue.h>
@@ -48,9 +50,6 @@ static void lifecycle_install(void) {
 static void lifecycle_install(void) {}
 #endif
 
-static Vector3 times(Vector3 a,float b) { return (Vector3){a.x*b,a.y*b,a.z*b}; }
-static float scalar(Vector3 a,Vector3 b) { return a.x*b.x+a.y*b.y+a.z*b.z; }
-static Vector3 unit(Vector3 a) { float length=sqrtf(scalar(a,a)); return length>0?times(a,1/length):(Vector3){0,1,0}; }
 static FlowerPoint point_from_vector(Vector3 p) { return (FlowerPoint){p.x,p.y,p.z}; }
 static Vector3 vector_from_point(FlowerPoint p) { return (Vector3){p.x,p.y,p.z}; }
 static FlowerCamera camera_state(Camera3D camera) {
@@ -78,19 +77,18 @@ static void mesh_refresh(Mesh *mesh,bool uploaded) {
     if (!flower_mesh_build(&flower,display_density,&display)) {
         TraceLog(LOG_FATAL,"Flower display allocation failed"); exit(1);
     }
-    Vector3 light=unit((Vector3){-0.3f,0.9f,0.5f});
     for (int index=0;index<display.vertex_count;index++) {
         FlowerPoint position=display.position[index], normal=display.normal[index];
         mesh->vertices[3*index]=position.x; mesh->vertices[3*index+1]=position.y; mesh->vertices[3*index+2]=position.z;
         mesh->normals[3*index]=normal.x; mesh->normals[3*index+1]=normal.y; mesh->normals[3*index+2]=normal.z;
-        float brightness=0.24f+0.76f*fabsf(normal.x*light.x+normal.y*light.y+normal.z*light.z);
-        mesh->colors[4*index]=(unsigned char)(224*brightness);
-        mesh->colors[4*index+1]=(unsigned char)(100*brightness);
-        mesh->colors[4*index+2]=(unsigned char)(139*brightness);
-        mesh->colors[4*index+3]=255;
+        /* Geometry-dependent shading belongs in GLSL, never in the material cache. */
+        mesh->texcoords[2*index]=display.material_radius[index];
+        mesh->texcoords[2*index+1]=0.0f;
+        for (int component=0;component<4;component++) mesh->colors[4*index+component]=255;
     }
     if (uploaded) {
         UpdateMeshBuffer(*mesh,0,mesh->vertices,display.vertex_count*3*(int)sizeof(float),0);
+        UpdateMeshBuffer(*mesh,1,mesh->texcoords,display.vertex_count*2*(int)sizeof(float),0);
         UpdateMeshBuffer(*mesh,2,mesh->normals,display.vertex_count*3*(int)sizeof(float),0);
         UpdateMeshBuffer(*mesh,3,mesh->colors,display.vertex_count*4,0);
     }
@@ -110,7 +108,7 @@ static Mesh mesh_create(void) {
 }
 
 #if defined(PLATFORM_ANDROID)
-enum { UNUSED,GROW,LOOK,MOVE,LIFT,LOWER,ROLL_LEFT,ROLL_RIGHT,IGNORE,DENSITY };
+enum { UNUSED,GROW,LOOK,MOVE,LIFT,LOWER,ROLL_LEFT,ROLL_RIGHT,IGNORE,DENSITY,RINGS };
 typedef struct { int id,role; bool seen; Vector2 start,last; } Contact;
 static Contact contacts[8];
 static Rectangle pad(int role) {
@@ -121,6 +119,7 @@ static Rectangle pad(int role) {
 }
 static int role_at(Vector2 point) {
     if (CheckCollisionPointRec(point,(Rectangle){GetScreenWidth()-140,12,130,56})) return DENSITY;
+    if (CheckCollisionPointRec(point,(Rectangle){GetScreenWidth()-290,12,130,56})) return RINGS;
     for (int role=LOOK;role<=ROLL_RIGHT;role++) if (CheckCollisionPointRec(point,pad(role))) return role;
     return GROW;
 }
@@ -141,6 +140,7 @@ static bool touch_frame(Camera3D *camera,float camera_seconds,double growth_seco
             if (slot<0) { flower_hold_cancel(&hold); continue; }
             contacts[slot]=(Contact){.id=id,.role=role_at(point),.start=point,.last=point};
             if (contacts[slot].role==DENSITY) display_density=3-display_density;
+            if (contacts[slot].role==RINGS) show_rings=!show_rings;
             if (contacts[slot].role==GROW && !flower_hold_begin(&hold,id,true,true,pick(point,*camera))) contacts[slot].role=IGNORE;
         }
         Contact *contact=&contacts[slot]; contact->seen=true;
@@ -189,6 +189,20 @@ int main(int argc,char **argv) {
     Camera3D camera={.position={0,2.8f,3.2f},.target={0,0,0},.up={0,1,0},.fovy=50,.projection=CAMERA_PERSPECTIVE};
     camera_turn(&camera,0,0,0);
     Mesh mesh=mesh_create(); Material material=LoadMaterialDefault();
+    Shader surface_shader=LoadShaderFromMemory(flower_surface_vertex_shader,flower_surface_fragment_shader);
+    int rings_uniform=-1;
+    bool shader_ok=IsShaderValid(surface_shader);
+    if (shader_ok) rings_uniform=GetShaderLocation(surface_shader,"u_rings");
+    if (!shader_ok || rings_uniform<0 ||
+        surface_shader.locs[SHADER_LOC_MATRIX_MVP]<0 ||
+        surface_shader.locs[SHADER_LOC_MATRIX_NORMAL]<0 ||
+        GetShaderLocationAttrib(surface_shader,"vertexNormal")<0 ||
+        GetShaderLocationAttrib(surface_shader,"vertexTexCoord")<0) {
+        TraceLog(LOG_ERROR,"Flower two-sided intrinsic surface shader unavailable");
+        UnloadShader(surface_shader); UnloadMaterial(material); UnloadMesh(mesh); CloseWindow();
+        return 2;
+    }
+    material.shader=surface_shader;
     while (!WindowShouldClose()) {
         double seconds=GetFrameTime();
         bool focused=platform_active && IsWindowFocused();
@@ -211,29 +225,37 @@ int main(int argc,char **argv) {
         bool down=IsMouseButtonDown(MOUSE_BUTTON_LEFT), pressed=IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
         FlowerHit hit=pick(GetMousePosition(),camera);
         bool density_control=CheckCollisionPointRec(GetMousePosition(),(Rectangle){GetScreenWidth()-140,12,130,56});
-        if (density_control) hit=(FlowerHit){0};
+        bool rings_control=CheckCollisionPointRec(GetMousePosition(),(Rectangle){GetScreenWidth()-290,12,130,56});
+        if (density_control || rings_control) hit=(FlowerHit){0};
         if (pressed && focused && density_control) display_density=3-display_density;
+        if (pressed && focused && rings_control) show_rings=!show_rings;
         if (!down && focused) flower_hold_all_released(&hold);
         if (pressed) flower_hold_begin(&hold,-2,true,focused,hit);
         changed=flower_hold_frame_policy(&flower,&hold,-2,down,focused,hit,pressed?0:seconds,&policy);
         if (IsKeyPressed(KEY_T)) display_density=3-display_density;
+        if (IsKeyPressed(KEY_R)) show_rings=!show_rings;
 #endif
         if (display.density!=display_density) { UnloadMesh(mesh); mesh=mesh_create(); }
         else if (changed) mesh_refresh(&mesh,true);
+        float rings_value=show_rings?1.0f:0.0f;
+        SetShaderValue(surface_shader,rings_uniform,&rings_value,SHADER_UNIFORM_FLOAT);
         BeginDrawing(); ClearBackground((Color){14,16,22,255});
         BeginMode3D(camera); rlDisableBackfaceCulling();
         DrawMesh(mesh,material,(Matrix){.m0=1,.m5=1,.m10=1,.m15=1});
         rlEnableBackfaceCulling(); EndMode3D();
         DrawText(changed?"GROWING":"PAUSED",18,18,24,LIGHTGRAY);
         DrawText("Hold a flower region. Release to freeze.",18,48,16,LIGHTGRAY);
+        DrawRectangle(GetScreenWidth()-290,12,130,56,(Color){29,32,40,230});
+        DrawText(show_rings?"RINGS ON":"RINGS OFF",GetScreenWidth()-282,30,16,LIGHTGRAY);
         DrawRectangle(GetScreenWidth()-140,12,130,56,(Color){29,32,40,230});
         DrawText(display_density==1?"MESH 1x":"MESH 2x",GetScreenWidth()-132,30,18,LIGHTGRAY);
 #if defined(PLATFORM_ANDROID)
         draw_touch_controls();
 #else
-        DrawText("WASD: fly  Q/E: down/up  right drag: look  Z/X: roll  T: mesh",18,GetScreenHeight()-28,15,LIGHTGRAY);
+        DrawText("WASD: fly  Q/E: down/up  right drag: look  Z/X: roll  T: mesh  R: rings",18,GetScreenHeight()-28,15,LIGHTGRAY);
 #endif
         EndDrawing();
     }
-    flower_mesh_free(&display); UnloadMaterial(material); UnloadMesh(mesh); CloseWindow(); return 0;
+    flower_mesh_free(&display); UnloadMaterial(material); UnloadShader(surface_shader);
+    UnloadMesh(mesh); CloseWindow(); return 0;
 }

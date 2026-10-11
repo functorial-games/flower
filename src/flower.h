@@ -67,6 +67,8 @@ typedef struct {
 typedef struct {
     int density, vertex_count, triangle_count, surface_count, rings, slices;
     FlowerPoint *position, *normal;
+    /* Derived material radius for the drawing shader; never authoritative Skin. */
+    float *material_radius;
     uint16_t *parent;
     FlowerSurfaceTriangle *surface;
 } FlowerMesh;
